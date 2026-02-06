@@ -57,7 +57,7 @@
         "@types/node": "^24",
         "@types/nunjucks": "^3.2.6",
         "agadoo": "^3.0.0",
-        "eslint": "^9.35.0",
+        "eslint": "^9.39.2",
         "happy-dom": "^20.0.0",
         "prettier": "^3.6.2",
         "rimraf": "6.1.2",
