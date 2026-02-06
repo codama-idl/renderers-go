@@ -1,0 +1,187 @@
+{% extends "layout.njk" %}
+
+{% block main %}
+
+{{ imports }}
+
+{{ discriminatorConstants }}
+
+// {{ instruction.name | pascalCase }} is the `{{ instruction.name | pascalCase }}` instruction.
+type {{ instruction.name | pascalCase }} struct {
+{% for account in instruction.accounts %}
+	// [{{ loop.index0 }}] = {% if account.isWritable %}[WRITE{% if account.isSigner %}, SIGNER{% endif %}]{% elif account.isSigner %}[SIGNER]{% else %}[]{% endif %} {{ account.name | pascalCase }}
+{% endfor %}
+	ag_solanago.AccountMetaSlice `bin:"-" borsh_skip:"true"`
+{% for arg in instructionArgs %}
+{% if not arg.default %}
+	{{ arg.name | pascalCase }} {{ arg.type }}{% if arg.innerOptionType %} `bin:"optional"`{% endif %}
+
+{% endif %}
+{% endfor %}
+}
+
+// New{{ instruction.name | pascalCase }}InstructionBuilder creates a new `{{ instruction.name | pascalCase }}` instruction builder.
+func New{{ instruction.name | pascalCase }}InstructionBuilder() *{{ instruction.name | pascalCase }} {
+	nd := &{{ instruction.name | pascalCase }}{}
+	nd.AccountMetaSlice = make(ag_solanago.AccountMetaSlice, {{ instruction.accounts.length }})
+	return nd
+}
+
+{% for arg in instructionArgs %}
+{% if not arg.default %}
+// Set{{ arg.name | pascalCase }} sets the "{{ arg.name | snakeCase }}" parameter.
+func (inst *{{ instruction.name | pascalCase }}) Set{{ arg.name | pascalCase }}({{ arg.name | camelCase }} {{ arg.type }}) *{{ instruction.name | pascalCase }} {
+	inst.{{ arg.name | pascalCase }} = {{ arg.name | camelCase }}
+	return inst
+}
+
+{% endif %}
+{% endfor %}
+{% for account in instruction.accounts %}
+// Set{{ account.name | pascalCase }}Account sets the "{{ account.name | snakeCase }}" account.
+func (inst *{{ instruction.name | pascalCase }}) Set{{ account.name | pascalCase }}Account({{ account.name | camelCase }} ag_solanago.PublicKey) *{{ instruction.name | pascalCase }} {
+{% if account.isSigner === 'either' %}
+	inst.AccountMetaSlice[{{ loop.index0 }}] = ag_solanago.Meta({{ account.name | camelCase }}){% if account.isWritable %}.WRITE(){% endif %}
+
+{% elif account.isSigner %}
+	inst.AccountMetaSlice[{{ loop.index0 }}] = ag_solanago.Meta({{ account.name | camelCase }}).SIGNER(){% if account.isWritable %}.WRITE(){% endif %}
+
+{% else %}
+	inst.AccountMetaSlice[{{ loop.index0 }}] = ag_solanago.Meta({{ account.name | camelCase }}){% if account.isWritable %}.WRITE(){% endif %}
+
+{% endif %}
+	return inst
+}
+
+// Get{{ account.name | pascalCase }}Account gets the "{{ account.name | snakeCase }}" account.
+func (inst *{{ instruction.name | pascalCase }}) Get{{ account.name | pascalCase }}Account() *ag_solanago.AccountMeta {
+	return inst.AccountMetaSlice[{{ loop.index0 }}]
+}
+
+{% endfor %}
+
+func (inst {{ instruction.name | pascalCase }}) Build() *Instruction {
+	return &Instruction{BaseVariant: ag_binary.BaseVariant{
+		Impl:   inst,
+		TypeID: ag_binary.NoTypeIDDefaultID,
+	}}
+}
+
+// ValidateAndBuild validates the instruction parameters and accounts;
+// if there is a validation error, it returns the error.
+// Otherwise, it builds and returns the instruction.
+func (inst {{ instruction.name | pascalCase }}) ValidateAndBuild() (*Instruction, error) {
+	if err := inst.Validate(); err != nil {
+		return nil, err
+	}
+	return inst.Build(), nil
+}
+
+func (inst *{{ instruction.name | pascalCase }}) Validate() error {
+{% for account in instruction.accounts %}
+{% if not account.isOptional %}
+	if inst.AccountMetaSlice[{{ loop.index0 }}] == nil {
+		return fmt.Errorf("accounts.{{ account.name | pascalCase }} is not set")
+	}
+{% endif %}
+{% endfor %}
+	return nil
+}
+
+func (inst *{{ instruction.name | pascalCase }}) GetAccounts() (out []*ag_solanago.AccountMeta) {
+	return inst.AccountMetaSlice
+}
+
+func (inst *{{ instruction.name | pascalCase }}) SetAccounts(accounts []*ag_solanago.AccountMeta) error {
+{% if instruction.accounts.length > 0 %}
+	if len(accounts) < {{ instruction.accounts.length }} {
+		return fmt.Errorf("not enough accounts: expected at least {{ instruction.accounts.length }}, got %d", len(accounts))
+	}
+	inst.AccountMetaSlice = accounts[:{{ instruction.accounts.length }}]
+{% else %}
+	inst.AccountMetaSlice = nil
+{% endif %}
+	return nil
+}
+
+func (inst *{{ instruction.name | pascalCase }}) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+{% for arg in instructionArgs %}
+{% if arg.default %}
+	{
+		err := encoder.Encode({{ arg.type }}({{ arg.value }}))
+		if err != nil {
+			return err
+		}
+	}
+{% elif arg.innerOptionType %}
+	{
+		if inst.{{ arg.name | pascalCase }} == nil {
+			err := encoder.WriteBool(false)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := encoder.WriteBool(true)
+			if err != nil {
+				return err
+			}
+			err = encoder.Encode(*inst.{{ arg.name | pascalCase }})
+			if err != nil {
+				return err
+			}
+		}
+	}
+{% else %}
+	{
+		err := encoder.Encode(inst.{{ arg.name | pascalCase }})
+		if err != nil {
+			return err
+		}
+	}
+{% endif %}
+{% endfor %}
+	return nil
+}
+
+func (inst *{{ instruction.name | pascalCase }}) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+{% for arg in instructionArgs %}
+{% if arg.default %}
+	{
+		var tmp {{ arg.type }}
+		err := decoder.Decode(&tmp)
+		if err != nil {
+			return err
+		}
+	}
+{% elif arg.innerOptionType %}
+	{
+		ok, err := decoder.ReadBool()
+		if err != nil {
+			return err
+		}
+		if ok {
+			var val {{ arg.innerOptionType }}
+			err = decoder.Decode(&val)
+			if err != nil {
+				return err
+			}
+			inst.{{ arg.name | pascalCase }} = &val
+		}
+	}
+{% else %}
+	{
+		err := decoder.Decode(&inst.{{ arg.name | pascalCase }})
+		if err != nil {
+			return err
+		}
+	}
+{% endif %}
+{% endfor %}
+	return nil
+}
+
+{% for nestedStruct in typeManifest.nestedStructs %}
+{{ nestedStruct }}
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "layout.njk" %}
+{% block main %}
+
+{{ imports }}
+
+{{ discriminatorConstants }}
+
+{{ typeManifest.type }}
+
+{% for nestedStruct in typeManifest.nestedStructs %}
+{{ nestedStruct }}
+{% endfor %}
+
+{% if account.size != null %}
+const {{ account.name | pascalCase }}_SIZE = {{ account.size }}
+{% endif %}
+
+func (obj *{{ account.name | pascalCase }}) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+{% for field in accountFields %}
+{% if field.innerOptionType %}
+	{
+		if obj.{{ field.name | pascalCase }} == nil {
+			err := encoder.WriteBool(false)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := encoder.WriteBool(true)
+			if err != nil {
+				return err
+			}
+			err = encoder.Encode(*obj.{{ field.name | pascalCase }})
+			if err != nil {
+				return err
+			}
+		}
+	}
+{% else %}
+	{
+		err := encoder.Encode(obj.{{ field.name | pascalCase }})
+		if err != nil {
+			return err
+		}
+	}
+{% endif %}
+{% endfor %}
+	return nil
+}
+
+func (obj *{{ account.name | pascalCase }}) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+{% for field in accountFields %}
+{% if field.innerOptionType %}
+	{
+		ok, err := decoder.ReadBool()
+		if err != nil {
+			return err
+		}
+		if ok {
+			var val {{ field.innerOptionType }}
+			err = decoder.Decode(&val)
+			if err != nil {
+				return err
+			}
+			obj.{{ field.name | pascalCase }} = &val
+		}
+	}
+{% else %}
+	{
+		err := decoder.Decode(&obj.{{ field.name | pascalCase }})
+		if err != nil {
+			return err
+		}
+	}
+{% endif %}
+{% endfor %}
+	return nil
+}
+
+{% if pda %}
+// Find{{ account.name | pascalCase }}Address finds the PDA for the {{ account.name | pascalCase }} account.
+func Find{{ account.name | pascalCase }}Address(
+{% if hasVariableSeeds %}
+{% for seed in seeds %}
+{% if seed.kind === 'variablePdaSeedNode' %}
+	{{ seed.name | camelCase }} {{ seed.typeManifest.type }},
+{% endif %}
+{% endfor %}
+{% endif %}
+) (ag_solanago.PublicKey, uint8, error) {
+	addr, bump, err := ag_solanago.FindProgramAddress(
+		[][]byte{
+{% for seed in seeds %}
+{% if seed.kind === 'constantPdaSeedNode' and seed.value.kind === 'programIdValueNode' %}
+			ProgramID[:],
+{% elif seed.kind === 'constantPdaSeedNode' %}
+			[]byte({{ seed.valueManifest.render }}),
+{% elif seed.kind == 'variablePdaSeedNode' and seed.resolvedType.kind == 'publicKeyTypeNode' %}
+			{{ seed.name | camelCase }}[:],
+{% elif seed.kind == 'variablePdaSeedNode' and seed.resolvedType.kind == 'bytesTypeNode' %}
+			{{ seed.name | camelCase }},
+{% else %}
+			[]byte(fmt.Sprintf("%v", {{ seed.name | camelCase }})),
+{% endif %}
+{% endfor %}
+		},
+		ProgramID,
+	)
+	return addr, bump, err
+}
+{% endif %}
+
+{% endblock %}

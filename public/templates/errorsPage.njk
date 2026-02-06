@@ -1,0 +1,34 @@
+{% extends "layout.njk" %}
+
+{% block main %}
+
+import (
+	"fmt"
+)
+
+// {{ program.name | pascalCase }}Error represents a program-specific error.
+type {{ program.name | pascalCase }}Error uint32
+
+const (
+{% for error in errors | sort(false, false, 'code') %}
+	// {{ error.name | pascalCase }}Error - {{ error.message }}
+	{{ error.name | pascalCase }}Error {{ program.name | pascalCase }}Error = 0x{{ error.code.toString(16) | upper }}
+{% endfor %}
+)
+
+func (e {{ program.name | pascalCase }}Error) Error() string {
+	switch e {
+{% for error in errors | sort(false, false, 'code') %}
+	case {{ error.name | pascalCase }}Error:
+		return "{{ error.message }}"
+{% endfor %}
+	default:
+		return fmt.Sprintf("unknown error: %d", e)
+	}
+}
+
+func (e {{ program.name | pascalCase }}Error) Code() uint32 {
+	return uint32(e)
+}
+
+{% endblock %}
