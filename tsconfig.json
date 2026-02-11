@@ -19,13 +19,6 @@
         "target": "ESNext"
     },
     "display": "@codama/renderers-go",
-    "include": [
-        "src",
-        "test",
-        "tsup.config.ts"
-    ],
-    "exclude": [
-        "node_modules",
-        "e2e"
-    ]
+    "include": ["src", "test", "tsup.config.ts"],
+    "exclude": ["node_modules", "e2e"]
 }

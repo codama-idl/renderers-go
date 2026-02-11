@@ -29,12 +29,7 @@ import {
 import { getTypeManifestVisitor } from './getTypeManifestVisitor';
 import { ImportMap } from './ImportMap';
 import { renderValueNode } from './renderValueNodeVisitor';
-import {
-    getDiscriminatorConstants,
-    getImportFromFactory,
-    LinkOverrides,
-    render,
-} from './utils';
+import { getDiscriminatorConstants, getImportFromFactory, LinkOverrides, render } from './utils';
 
 export type GetRenderMapOptions = {
     dependencyMap?: Record<string, string>;
@@ -134,10 +129,8 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                             constantSeeds,
                             discriminatorConstants: discriminatorConstants.render,
                             hasVariableSeeds,
-                            imports: imports
-                                .mergeWith(discriminatorConstants.imports)
-                                .toString(dependencyMap),
-                            packageName: snakeCase(program!.name),
+                            imports: imports.mergeWith(discriminatorConstants.imports).toString(dependencyMap),
+                            packageName: snakeCase(program?.name ?? 'generated'),
                             pda,
                             program,
                             seeds,
@@ -154,7 +147,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                         content: render('definedTypesPage.njk', {
                             definedType: node,
                             imports: imports.toString(dependencyMap),
-                            packageName: snakeCase(program!.name),
+                            packageName: snakeCase(program?.name ?? 'generated'),
                             typeManifest,
                         }),
                     });
@@ -253,12 +246,10 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                             discriminatorConstants: discriminatorConstants.render,
                             hasArgs,
                             hasOptional,
-                            imports: imports
-                                .mergeWith(discriminatorConstants.imports)
-                                .toString(dependencyMap),
+                            imports: imports.mergeWith(discriminatorConstants.imports).toString(dependencyMap),
                             instruction: node,
                             instructionArgs,
-                            packageName: snakeCase(program!.name),
+                            packageName: snakeCase(program?.name ?? 'generated'),
                             program,
                             typeManifest,
                         }),
@@ -316,10 +307,9 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
 
                     return mergeRenderMaps([
                         createRenderMap({
-                            ['instructions.go']:
-                                hasAnythingToExport
-                                    ? { content: render('instructionsMod.njk', ctx) }
-                                    : undefined,
+                            ['instructions.go']: hasAnythingToExport
+                                ? { content: render('instructionsMod.njk', ctx) }
+                                : undefined,
                         }),
                         ...getAllPrograms(node).map(p => visit(p, self)),
                     ]);

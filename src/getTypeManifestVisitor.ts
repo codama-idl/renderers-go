@@ -29,17 +29,17 @@ export type TypeManifest = {
 const NUMBER_FORMAT_MAP: Record<string, string> = {
     f32: 'float32',
     f64: 'float64',
-    i8: 'int8',
+    i128: 'ag_binary.Int128',
     i16: 'int16',
     i32: 'int32',
     i64: 'int64',
-    i128: 'ag_binary.Int128',
-    u8: 'uint8',
+    i8: 'int8',
+    shortU16: 'uint16',
+    u128: 'ag_binary.Uint128',
     u16: 'uint16',
     u32: 'uint32',
     u64: 'uint64',
-    u128: 'ag_binary.Uint128',
-    shortU16: 'uint16',
+    u8: 'uint8',
 };
 
 export function getTypeManifestVisitor(options: {
@@ -217,9 +217,7 @@ export function getTypeManifestVisitor(options: {
                     const mergedManifest = mergeManifests(variants);
                     mergedManifest.imports.add('github.com/gagliardetto/binary');
 
-                    const fieldLines = [
-                        `\tEnum ag_binary.BorshEnum \`borsh_enum:"true"\``,
-                    ];
+                    const fieldLines = [`\tEnum ag_binary.BorshEnum \`borsh_enum:"true"\``];
                     for (const variant of variants) {
                         fieldLines.push(`\t${variant.type}`);
                     }

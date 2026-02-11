@@ -3,11 +3,7 @@
 // empty renders — serialization in Go is handled via struct tags
 // and explicit MarshalWithEncoder/UnmarshalWithDecoder methods.
 
-import {
-    AccountNode,
-    DefinedTypeNode,
-    InstructionNode,
-} from '@codama/nodes';
+import { AccountNode, DefinedTypeNode, InstructionNode } from '@codama/nodes';
 
 import { ImportMap } from '../ImportMap';
 
