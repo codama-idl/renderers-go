@@ -29,7 +29,7 @@ import {
 import { getTypeManifestVisitor } from './getTypeManifestVisitor';
 import { ImportMap } from './ImportMap';
 import { renderValueNode } from './renderValueNodeVisitor';
-import { getDiscriminatorConstants, getImportFromFactory, LinkOverrides, render } from './utils';
+import { collectProgramPdas, getDiscriminatorConstants, getImportFromFactory, LinkOverrides, render } from './utils';
 
 export type GetRenderMapOptions = {
     dependencyMap?: Record<string, string>;
@@ -258,6 +258,11 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
 
                 visitProgram(node, { self }) {
                     program = node;
+                    const pdaRegistry = collectProgramPdas(node, {
+                        leavesOnly: !renderParentInstructions,
+                        linkables,
+                        stack,
+                    });
                     let renders = mergeRenderMaps([
                         ...node.accounts.map(account => visit(account, self)),
                         ...node.definedTypes.map(type => visit(type, self)),
@@ -273,6 +278,21 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                                 errors: node.errors,
                                 imports: new ImportMap().toString(dependencyMap),
                                 packageName: snakeCase(node.name),
+                                program: node,
+                            }),
+                        });
+                    }
+
+                    // PDA find helpers.
+                    if (pdaRegistry.entries.length > 0) {
+                        const pdasImports = new ImportMap();
+                        pdaRegistry.entries.forEach(entry => pdasImports.mergeWith(entry.imports));
+                        renders = addToRenderMap(renders, `pdas.go`, {
+                            content: render('pdasPage.njk', {
+                                foreignPrograms: pdaRegistry.foreignPrograms,
+                                imports: pdasImports.toString(dependencyMap),
+                                packageName: snakeCase(node.name),
+                                pdas: pdaRegistry.entries,
                                 program: node,
                             }),
                         });

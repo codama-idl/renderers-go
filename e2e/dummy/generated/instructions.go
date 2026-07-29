@@ -18,6 +18,10 @@ const ProgramName = "Dummy"
 
 var ProgramID ag_solanago.PublicKey = ag_solanago.MustPublicKeyFromBase58("Dummy11111111111111111111111111111111111111")
 
+// SetProgramID overrides ProgramID and registers the instruction decoder for
+// it. Call it once during initialization, before any concurrent use of this
+// package: ProgramID is read by instruction builders and PDA helpers without
+// synchronization.
 func SetProgramID(pubkey ag_solanago.PublicKey) {
 	ProgramID = pubkey
 	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
@@ -30,32 +34,32 @@ var (
 		ag_binary.Uint8TypeIDEncoding,
 		[]ag_binary.VariantType{
 			{
-				"Instruction1",
-				(*Instruction1)(nil),
+				Name: "Instruction1",
+				Type: (*Instruction1)(nil),
 			},
 			{
-				"Instruction2",
-				(*Instruction2)(nil),
+				Name: "Instruction2",
+				Type: (*Instruction2)(nil),
 			},
 			{
-				"Instruction3",
-				(*Instruction3)(nil),
+				Name: "Instruction3",
+				Type: (*Instruction3)(nil),
 			},
 			{
-				"Instruction4",
-				(*Instruction4)(nil),
+				Name: "Instruction4",
+				Type: (*Instruction4)(nil),
 			},
 			{
-				"Instruction5",
-				(*Instruction5)(nil),
+				Name: "Instruction5",
+				Type: (*Instruction5)(nil),
 			},
 			{
-				"Instruction6",
-				(*Instruction6)(nil),
+				Name: "Instruction6",
+				Type: (*Instruction6)(nil),
 			},
 			{
-				"Instruction7",
-				(*Instruction7)(nil),
+				Name: "Instruction7",
+				Type: (*Instruction7)(nil),
 			},
 		},
 	)

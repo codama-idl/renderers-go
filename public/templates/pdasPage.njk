@@ -1,0 +1,37 @@
+{% extends "layout.njk" %}
+
+{% block main %}
+
+{{ imports }}
+
+{% if foreignPrograms.length > 0 %}
+// Ids of other programs that PDA derivations in this file use.
+var (
+{% for p in foreignPrograms %}
+	{{ p.varName }} = ag_solanago.MustPublicKeyFromBase58("{{ p.base58 }}")
+{% endfor %}
+)
+
+{% endif %}
+{% for pda in pdas %}
+{% for doc in pda.docs %}
+// {{ doc }}
+{% endfor %}
+func Find{{ pda.goName }}PDA({% for param in pda.params %}{{ param.name }} {{ param.goType }}{% if not loop.last %}, {% endif %}{% endfor %}) (ag_solanago.PublicKey, uint8, error) {
+{% if pda.seeds.length > 0 %}
+	return ag_solanago.FindProgramAddress(
+		[][]byte{
+{% for seed in pda.seeds %}
+			{{ seed.render }},{% if seed.comment %} // {{ seed.comment }}{% endif %}
+
+{% endfor %}
+		},
+		{{ pda.programExpr }},
+	)
+{% else %}
+	return ag_solanago.FindProgramAddress(nil, {{ pda.programExpr }})
+{% endif %}
+}
+
+{% endfor %}
+{% endblock %}

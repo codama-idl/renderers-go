@@ -18,6 +18,10 @@ const ProgramName = "Pump"
 
 var ProgramID ag_solanago.PublicKey = ag_solanago.MustPublicKeyFromBase58("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
 
+// SetProgramID overrides ProgramID and registers the instruction decoder for
+// it. Call it once during initialization, before any concurrent use of this
+// package: ProgramID is read by instruction builders and PDA helpers without
+// synchronization.
 func SetProgramID(pubkey ag_solanago.PublicKey) {
 	ProgramID = pubkey
 	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
@@ -30,96 +34,96 @@ var (
 		ag_binary.Uint8TypeIDEncoding,
 		[]ag_binary.VariantType{
 			{
-				"AdminSetCreator",
-				(*AdminSetCreator)(nil),
+				Name: "AdminSetCreator",
+				Type: (*AdminSetCreator)(nil),
 			},
 			{
-				"AdminSetIdlAuthority",
-				(*AdminSetIdlAuthority)(nil),
+				Name: "AdminSetIdlAuthority",
+				Type: (*AdminSetIdlAuthority)(nil),
 			},
 			{
-				"AdminUpdateTokenIncentives",
-				(*AdminUpdateTokenIncentives)(nil),
+				Name: "AdminUpdateTokenIncentives",
+				Type: (*AdminUpdateTokenIncentives)(nil),
 			},
 			{
-				"Buy",
-				(*Buy)(nil),
+				Name: "Buy",
+				Type: (*Buy)(nil),
 			},
 			{
-				"BuyExactSolIn",
-				(*BuyExactSolIn)(nil),
+				Name: "BuyExactSolIn",
+				Type: (*BuyExactSolIn)(nil),
 			},
 			{
-				"ClaimTokenIncentives",
-				(*ClaimTokenIncentives)(nil),
+				Name: "ClaimTokenIncentives",
+				Type: (*ClaimTokenIncentives)(nil),
 			},
 			{
-				"CloseUserVolumeAccumulator",
-				(*CloseUserVolumeAccumulator)(nil),
+				Name: "CloseUserVolumeAccumulator",
+				Type: (*CloseUserVolumeAccumulator)(nil),
 			},
 			{
-				"CollectCreatorFee",
-				(*CollectCreatorFee)(nil),
+				Name: "CollectCreatorFee",
+				Type: (*CollectCreatorFee)(nil),
 			},
 			{
-				"Create",
-				(*Create)(nil),
+				Name: "Create",
+				Type: (*Create)(nil),
 			},
 			{
-				"CreateV2",
-				(*CreateV2)(nil),
+				Name: "CreateV2",
+				Type: (*CreateV2)(nil),
 			},
 			{
-				"ExtendAccount",
-				(*ExtendAccount)(nil),
+				Name: "ExtendAccount",
+				Type: (*ExtendAccount)(nil),
 			},
 			{
-				"Initialize",
-				(*Initialize)(nil),
+				Name: "Initialize",
+				Type: (*Initialize)(nil),
 			},
 			{
-				"InitUserVolumeAccumulator",
-				(*InitUserVolumeAccumulator)(nil),
+				Name: "InitUserVolumeAccumulator",
+				Type: (*InitUserVolumeAccumulator)(nil),
 			},
 			{
-				"Migrate",
-				(*Migrate)(nil),
+				Name: "Migrate",
+				Type: (*Migrate)(nil),
 			},
 			{
-				"Sell",
-				(*Sell)(nil),
+				Name: "Sell",
+				Type: (*Sell)(nil),
 			},
 			{
-				"SetCreator",
-				(*SetCreator)(nil),
+				Name: "SetCreator",
+				Type: (*SetCreator)(nil),
 			},
 			{
-				"SetMetaplexCreator",
-				(*SetMetaplexCreator)(nil),
+				Name: "SetMetaplexCreator",
+				Type: (*SetMetaplexCreator)(nil),
 			},
 			{
-				"SetParams",
-				(*SetParams)(nil),
+				Name: "SetParams",
+				Type: (*SetParams)(nil),
 			},
 			{
-				"SetReservedFeeRecipients",
-				(*SetReservedFeeRecipients)(nil),
+				Name: "SetReservedFeeRecipients",
+				Type: (*SetReservedFeeRecipients)(nil),
 			},
 			{
-				"SyncUserVolumeAccumulator",
-				(*SyncUserVolumeAccumulator)(nil),
+				Name: "SyncUserVolumeAccumulator",
+				Type: (*SyncUserVolumeAccumulator)(nil),
 			},
 			{
-				"ToggleCreateV2",
-				(*ToggleCreateV2)(nil),
+				Name: "ToggleCreateV2",
+				Type: (*ToggleCreateV2)(nil),
 			},
 			{
-				"ToggleMayhemMode",
-				(*ToggleMayhemMode)(nil),
+				Name: "ToggleMayhemMode",
+				Type: (*ToggleMayhemMode)(nil),
 			},
 			{
-				"UpdateGlobalAuthority",
-				(*UpdateGlobalAuthority)(nil),
+				Name: "UpdateGlobalAuthority",
+				Type: (*UpdateGlobalAuthority)(nil),
 			},
 		},
 	)

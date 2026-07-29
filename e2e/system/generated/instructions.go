@@ -18,6 +18,10 @@ const ProgramName = "System"
 
 var ProgramID ag_solanago.PublicKey = ag_solanago.MustPublicKeyFromBase58("11111111111111111111111111111111")
 
+// SetProgramID overrides ProgramID and registers the instruction decoder for
+// it. Call it once during initialization, before any concurrent use of this
+// package: ProgramID is read by instruction builders and PDA helpers without
+// synchronization.
 func SetProgramID(pubkey ag_solanago.PublicKey) {
 	ProgramID = pubkey
 	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
@@ -30,56 +34,56 @@ var (
 		ag_binary.Uint8TypeIDEncoding,
 		[]ag_binary.VariantType{
 			{
-				"AdvanceNonceAccount",
-				(*AdvanceNonceAccount)(nil),
+				Name: "AdvanceNonceAccount",
+				Type: (*AdvanceNonceAccount)(nil),
 			},
 			{
-				"Allocate",
-				(*Allocate)(nil),
+				Name: "Allocate",
+				Type: (*Allocate)(nil),
 			},
 			{
-				"AllocateWithSeed",
-				(*AllocateWithSeed)(nil),
+				Name: "AllocateWithSeed",
+				Type: (*AllocateWithSeed)(nil),
 			},
 			{
-				"Assign",
-				(*Assign)(nil),
+				Name: "Assign",
+				Type: (*Assign)(nil),
 			},
 			{
-				"AssignWithSeed",
-				(*AssignWithSeed)(nil),
+				Name: "AssignWithSeed",
+				Type: (*AssignWithSeed)(nil),
 			},
 			{
-				"AuthorizeNonceAccount",
-				(*AuthorizeNonceAccount)(nil),
+				Name: "AuthorizeNonceAccount",
+				Type: (*AuthorizeNonceAccount)(nil),
 			},
 			{
-				"CreateAccount",
-				(*CreateAccount)(nil),
+				Name: "CreateAccount",
+				Type: (*CreateAccount)(nil),
 			},
 			{
-				"CreateAccountWithSeed",
-				(*CreateAccountWithSeed)(nil),
+				Name: "CreateAccountWithSeed",
+				Type: (*CreateAccountWithSeed)(nil),
 			},
 			{
-				"InitializeNonceAccount",
-				(*InitializeNonceAccount)(nil),
+				Name: "InitializeNonceAccount",
+				Type: (*InitializeNonceAccount)(nil),
 			},
 			{
-				"TransferSol",
-				(*TransferSol)(nil),
+				Name: "TransferSol",
+				Type: (*TransferSol)(nil),
 			},
 			{
-				"TransferSolWithSeed",
-				(*TransferSolWithSeed)(nil),
+				Name: "TransferSolWithSeed",
+				Type: (*TransferSolWithSeed)(nil),
 			},
 			{
-				"UpgradeNonceAccount",
-				(*UpgradeNonceAccount)(nil),
+				Name: "UpgradeNonceAccount",
+				Type: (*UpgradeNonceAccount)(nil),
 			},
 			{
-				"WithdrawNonceAccount",
-				(*WithdrawNonceAccount)(nil),
+				Name: "WithdrawNonceAccount",
+				Type: (*WithdrawNonceAccount)(nil),
 			},
 		},
 	)
