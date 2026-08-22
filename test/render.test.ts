@@ -6,6 +6,7 @@ import {
     bytesTypeNode,
     bytesValueNode,
     constantDiscriminatorNode,
+    constantPdaSeedNode,
     constantValueNode,
     definedTypeLinkNode,
     definedTypeNode,
@@ -20,7 +21,10 @@ import {
     instructionNode,
     numberTypeNode,
     numberValueNode,
+    pdaNode,
+    pdaValueNode,
     programNode,
+    publicKeyTypeNode,
     remainderCountNode,
     rootNode,
     sizePrefixTypeNode,
@@ -29,6 +33,7 @@ import {
     structFieldValueNode,
     structTypeNode,
     structValueNode,
+    variablePdaSeedNode,
 } from '@codama/nodes';
 import { renderMapContains } from '@codama/renderers-core';
 import { visit } from '@codama/visitors-core';
@@ -397,6 +402,80 @@ describe('remainder-encoded fields', () => {
             'encoder.Encode(inst.Prefixed)',
         );
         expectContains(renderMap, 'account_blob.go', 'encoder.WriteBytes(obj.Payload, false)', 'obj.Payload = data');
+    });
+});
+
+describe('pda helpers', () => {
+    const OTHER_PROGRAM_ID = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+    const utf8Seed = (text: string) => constantPdaSeedNode(bytesTypeNode(), bytesValueNode('utf8', text));
+    const pdaAccount = (name: string, pda: ReturnType<typeof pdaNode>) =>
+        instructionAccountNode({ defaultValue: pdaValueNode(pda), isSigner: false, isWritable: false, name });
+
+    it('renders Find helpers for constant, variable, foreign-program and empty seeds', () => {
+        const global = pdaNode({ name: 'global', seeds: [utf8Seed('global')] });
+        const root = pdaNode({ name: 'root', seeds: [] });
+        const bondingCurve = pdaNode({
+            name: 'bondingCurve',
+            seeds: [
+                utf8Seed('bonding-curve'),
+                variablePdaSeedNode('mint', publicKeyTypeNode()),
+                variablePdaSeedNode('index', numberTypeNode('u64')),
+            ],
+        });
+        const pool = pdaNode({
+            name: 'pool',
+            programId: OTHER_PROGRAM_ID,
+            seeds: [constantPdaSeedNode(numberTypeNode('u16'), numberValueNode(1))],
+        });
+        const renderMap = renderProgram({
+            instructions: [
+                instructionNode({
+                    accounts: [pdaAccount('bondingCurve', bondingCurve), pdaAccount('pool', pool)],
+                    name: 'buy',
+                }),
+                instructionNode({ accounts: [pdaAccount('bondingCurve', bondingCurve)], name: 'sell' }),
+            ],
+            pdas: [global, root],
+        });
+
+        // Constant seed, derived under the program itself.
+        expectContains(
+            renderMap,
+            'pdas.go',
+            'func FindGlobalPDA() (ag_solanago.PublicKey, uint8, error)',
+            /\[\]byte\("global"\),\s*\},\s*ProgramID,/,
+            'Seeds: "global".',
+            'Used by: program.',
+        );
+        // Variable seeds become typed parameters with borsh byte conversions.
+        expectContains(
+            renderMap,
+            'pdas.go',
+            'func FindBondingCurvePDA(mint ag_solanago.PublicKey, index uint64) (ag_solanago.PublicKey, uint8, error)',
+            /\[\]byte\("bonding-curve"\),\s*mint\[:\],\s*binary\.LittleEndian\.AppendUint64\(nil, index\),/,
+            '"encoding/binary"',
+            'Used by: buy, sell.',
+        );
+        // Foreign program ids are hoisted once and used as the derivation program.
+        expectContains(
+            renderMap,
+            'pdas.go',
+            `pdaProgram${OTHER_PROGRAM_ID} = ag_solanago.MustPublicKeyFromBase58("${OTHER_PROGRAM_ID}")`,
+            new RegExp(
+                `func FindPoolPDA\\(\\)[\\s\\S]*?\\{0x01, 0x00\\}, // \\(hex\\) 0100\\s*\\},\\s*pdaProgram${OTHER_PROGRAM_ID},`,
+            ),
+        );
+        // No seeds at all.
+        expectContains(
+            renderMap,
+            'pdas.go',
+            /func FindRootPDA\(\) \(ag_solanago\.PublicKey, uint8, error\) \{\s*return ag_solanago\.FindProgramAddress\(nil, ProgramID\)/,
+        );
+    });
+
+    it('does not emit pdas.go when the program has no PDAs', () => {
+        const renderMap = renderProgram({ instructions: [instructionNode({ name: 'noop' })] });
+        expect(renderMap.has('pdas.go')).toBe(false);
     });
 });
 
