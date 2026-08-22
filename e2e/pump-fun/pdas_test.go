@@ -54,7 +54,7 @@ func TestPdaSelfConsistency(t *testing.T) {
 			// feeConfig lives under the fee program and its second seed is
 			// the pump program id bytes.
 			name:      "feeConfig",
-			got:       func() (ag_solanago.PublicKey, uint8, error) { return pump.FindFeeConfigPDA() },
+			got:       pump.FindFeeConfigPDA,
 			wantSeeds: [][]byte{[]byte("fee_config"), pump.ProgramID[:]},
 			wantProg:  feeProgram,
 		},

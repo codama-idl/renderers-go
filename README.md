@@ -89,7 +89,13 @@ node e2e/generate.cjs <project>   # e.g. dummy, system, memo
 cd e2e/<project> && go build ./...
 ```
 
-Available e2e projects: `dummy`, `system`, `memo`, `pump-fun`.
+Available e2e projects: `dummy`, `system`, `memo`, `pump-fun`, `jupiter`.
+
+To add an Anchor program, convert its IDL to the Codama format first:
+
+```sh
+node e2e/anchor-to-codama.cjs path/to/anchor-idl.json e2e/<project>/idl.json
+```
 
 ### Lint
 

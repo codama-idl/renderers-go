@@ -4,6 +4,10 @@
 
 {{ imports }}
 
+{% if definedType.docs.length > 0 %}
+{{ definedType.docs | goDocComment }}{% else %}
+// {{ definedType.name | pascalCase }} is the `{{ definedType.name | pascalCase }}` type defined by the program.
+{% endif %}
 {{ typeManifest.type }}
 
 {% for nestedStruct in typeManifest.nestedStructs %}

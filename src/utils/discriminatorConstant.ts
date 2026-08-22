@@ -14,6 +14,7 @@ import { visit } from '@codama/visitors-core';
 import { getTypeManifestVisitor, TypeManifest } from '../getTypeManifestVisitor';
 import { ImportMap } from '../ImportMap';
 import { renderValueNode } from '../renderValueNodeVisitor';
+import { getDiscriminatorBytes, getDiscriminatorVarName } from './instructionDiscriminator';
 import { GetImportFromFunction } from './linkOverrides';
 
 type Fragment = { imports: ImportMap; render: string };
@@ -73,6 +74,9 @@ function getConstantDiscriminatorConstant(
     const suffix = index <= 0 ? '' : `_${index + 1}`;
 
     const name = pascalCase(`${prefix}_discriminator${suffix}`);
+    const bytes = getDiscriminatorBytes(discriminatorNode.constant.type, discriminatorNode.constant.value);
+    if (bytes) return getBytesConstant(name, bytes);
+
     const typeManifest = visit(discriminatorNode.constant.type, typeManifestVisitor);
     const value = renderValueNode(discriminatorNode.constant.value, getImportFrom);
     return getConstant(name, typeManifest, value);
@@ -94,14 +98,27 @@ function getFieldDiscriminatorConstant(
         return null;
     }
 
-    const name = pascalCase(`${prefix}_${discriminatorNode.name}`);
+    const name = getDiscriminatorVarName(prefix, discriminatorNode.name);
+    const bytes = getDiscriminatorBytes(field.type, field.defaultValue);
+    if (bytes) return getBytesConstant(name, bytes);
+
     const typeManifest = visit(field.type, typeManifestVisitor);
     const value = renderValueNode(field.defaultValue, getImportFrom);
     return getConstant(name, typeManifest, value);
 }
 
+// Discriminators with a known wire representation are always emitted as their
+// serialized bytes (`var NameDiscriminator = []byte{...}`), whatever the IDL
+// type, so the codec can write and compare them uniformly.
+function getBytesConstant(name: string, bytes: number[]): Fragment {
+    const varName = pascalCase(name);
+    return {
+        imports: new ImportMap(),
+        render: `// ${varName} is the discriminator that prefixes the serialized data.\nvar ${varName} = []byte{${bytes.join(', ')}}`,
+    };
+}
+
 function getConstant(name: string, typeManifest: TypeManifest, value: Fragment): Fragment {
     const type: Fragment = { imports: typeManifest.imports, render: typeManifest.type };
-    // Go variable declaration: var NameDiscriminator = []byte{...}
     return mergeFragments([type, value], ([_t, v]) => `var ${pascalCase(name)} = ${v}`);
 }

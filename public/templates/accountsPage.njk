@@ -5,6 +5,10 @@
 
 {{ discriminatorConstants }}
 
+{% if account.docs.length > 0 %}
+{{ account.docs | goDocComment }}{% else %}
+// {{ account.name | pascalCase }} is the `{{ account.name | pascalCase }}` account.
+{% endif %}
 {{ typeManifest.type }}
 
 {% for nestedStruct in typeManifest.nestedStructs %}
@@ -12,64 +16,114 @@
 {% endfor %}
 
 {% if account.size != null %}
+// {{ account.name | pascalCase }}_SIZE is the serialized size of the account in bytes.
 const {{ account.name | pascalCase }}_SIZE = {{ account.size }}
 {% endif %}
 
+// MarshalWithEncoder writes the account data: its discriminator, if any,
+// followed by the fields in IDL order.
 func (obj *{{ account.name | pascalCase }}) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+{% if discriminatorKind == 'constant' %}
+	if err := encoder.WriteBytes({{ discriminatorVar }}, false); err != nil {
+		return err
+	}
+{% endif %}
 {% for field in accountFields %}
-{% if field.innerOptionType %}
-	{
-		if obj.{{ field.name | pascalCase }} == nil {
-			err := encoder.WriteBool(false)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := encoder.WriteBool(true)
-			if err != nil {
-				return err
-			}
-			err = encoder.Encode(*obj.{{ field.name | pascalCase }})
-			if err != nil {
-				return err
-			}
+{% if field.discriminator %}
+	// Always the account's discriminator, whatever the field holds.
+	if err := encoder.WriteBytes({{ discriminatorVar }}, false); err != nil {
+		return err
+	}
+{% elif field.innerOptionType %}
+	if obj.{{ field.name | pascalCase }} == nil {
+		if err := encoder.WriteBool(false); err != nil {
+			return err
+		}
+	} else {
+		if err := encoder.WriteBool(true); err != nil {
+			return err
+		}
+		if err := encoder.Encode(*obj.{{ field.name | pascalCase }}); err != nil {
+			return err
+		}
+	}
+{% elif field.remainder == 'string' %}
+	if err := encoder.WriteBytes([]byte(obj.{{ field.name | pascalCase }}), false); err != nil {
+		return err
+	}
+{% elif field.remainder == 'bytes' %}
+	if err := encoder.WriteBytes(obj.{{ field.name | pascalCase }}, false); err != nil {
+		return err
+	}
+{% elif field.remainder == 'array' %}
+	for _, item := range obj.{{ field.name | pascalCase }} {
+		if err := encoder.Encode(item); err != nil {
+			return err
 		}
 	}
 {% else %}
-	{
-		err := encoder.Encode(obj.{{ field.name | pascalCase }})
-		if err != nil {
-			return err
-		}
+	if err := encoder.Encode(obj.{{ field.name | pascalCase }}); err != nil {
+		return err
 	}
 {% endif %}
 {% endfor %}
 	return nil
 }
 
+// UnmarshalWithDecoder reads the account data, rejecting it when the
+// discriminator does not match.
 func (obj *{{ account.name | pascalCase }}) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+{% if discriminatorKind == 'constant' %}
+	if got, err := decoder.ReadNBytes(len({{ discriminatorVar }})); err != nil {
+		return err
+	} else if !bytes.Equal(got, {{ discriminatorVar }}) {
+		return fmt.Errorf("invalid discriminator for {{ account.name | pascalCase }}: got %x, want %x", got, {{ discriminatorVar }})
+	}
+{% endif %}
 {% for field in accountFields %}
-{% if field.innerOptionType %}
-	{
-		ok, err := decoder.ReadBool()
-		if err != nil {
+{% if field.discriminator %}
+	if got, err := decoder.Peek(len({{ discriminatorVar }})); err != nil {
+		return err
+	} else if !bytes.Equal(got, {{ discriminatorVar }}) {
+		return fmt.Errorf("invalid discriminator for {{ account.name | pascalCase }}: got %x, want %x", got, {{ discriminatorVar }})
+	}
+	if err := decoder.Decode(&obj.{{ field.name | pascalCase }}); err != nil {
+		return err
+	}
+{% elif field.innerOptionType %}
+	if ok, err := decoder.ReadBool(); err != nil {
+		return err
+	} else if ok {
+		var val {{ field.innerOptionType }}
+		if err := decoder.Decode(&val); err != nil {
 			return err
 		}
-		if ok {
-			var val {{ field.innerOptionType }}
-			err = decoder.Decode(&val)
-			if err != nil {
-				return err
-			}
-			obj.{{ field.name | pascalCase }} = &val
+		obj.{{ field.name | pascalCase }} = &val
+	}
+{% elif field.remainder == 'string' %}
+	data, err := decoder.ReadNBytes(decoder.Remaining())
+	if err != nil {
+		return err
+	}
+	obj.{{ field.name | pascalCase }} = string(data)
+{% elif field.remainder == 'bytes' %}
+	data, err := decoder.ReadNBytes(decoder.Remaining())
+	if err != nil {
+		return err
+	}
+	obj.{{ field.name | pascalCase }} = data
+{% elif field.remainder == 'array' %}
+	obj.{{ field.name | pascalCase }} = nil
+	for decoder.Remaining() > 0 {
+		var item {{ field.itemType }}
+		if err := decoder.Decode(&item); err != nil {
+			return err
 		}
+		obj.{{ field.name | pascalCase }} = append(obj.{{ field.name | pascalCase }}, item)
 	}
 {% else %}
-	{
-		err := decoder.Decode(&obj.{{ field.name | pascalCase }})
-		if err != nil {
-			return err
-		}
+	if err := decoder.Decode(&obj.{{ field.name | pascalCase }}); err != nil {
+		return err
 	}
 {% endif %}
 {% endfor %}

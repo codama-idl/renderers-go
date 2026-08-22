@@ -1,3 +1,4 @@
+// Package main exercises the generated memo client in the e2e suite.
 package main
 
 import (

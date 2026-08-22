@@ -16,6 +16,7 @@ const (
 {% endfor %}
 )
 
+// Error returns the message the program associates with the error code.
 func (e {{ program.name | pascalCase }}Error) Error() string {
 	switch e {
 {% for error in errors | sort(false, false, 'code') %}
@@ -27,6 +28,7 @@ func (e {{ program.name | pascalCase }}Error) Error() string {
 	}
 }
 
+// Code returns the numeric error code as emitted by the program.
 func (e {{ program.name | pascalCase }}Error) Code() uint32 {
 	return uint32(e)
 }

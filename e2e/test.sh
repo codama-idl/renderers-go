@@ -23,5 +23,6 @@ test_project dummy
 test_project system
 test_project memo
 test_project pump-fun
+test_project jupiter
 # test_project meteora  # TODO: uncomment after some internal fixes
 # test_anchor_project anchor
