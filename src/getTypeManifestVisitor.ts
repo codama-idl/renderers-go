@@ -1,4 +1,4 @@
-import { CODAMA_ERROR__RENDERERS__UNSUPPORTED_NODE, CodamaError } from '@codama/errors';
+import { CODAMA_ERROR__RENDERERS__UNSUPPORTED_NODE, CodamaError, logWarn } from '@codama/errors';
 import {
     arrayTypeNode,
     CountNode,
@@ -190,7 +190,10 @@ export function getTypeManifestVisitor(options: {
 
                     const typeName = pascalCase(originalParentName);
 
-                    // Scalar enum: all variants are empty → use typed constants with iota.
+                    const sizeFormat = resolveNestedTypeNode(enumType.size).format;
+
+                    // Scalar enum: all variants are empty → use typed constants with iota,
+                    // on an integer of the IDL's size (u8 by default, u32 for Rust repr(u32) enums).
                     if (isScalarEnum(enumType)) {
                         const variants = enumType.variants.map(variant => visit(variant, self));
                         const mergedManifest = mergeManifests(variants);
@@ -203,7 +206,7 @@ export function getTypeManifestVisitor(options: {
                             return `\t${variantName}`;
                         });
 
-                        const typeDecl = `type ${typeName} uint8`;
+                        const typeDecl = `type ${typeName} ${NUMBER_FORMAT_MAP[sizeFormat] ?? 'uint8'}`;
                         const constDecl = `const (\n${constLines.join('\n')}\n)`;
 
                         return {
@@ -212,19 +215,47 @@ export function getTypeManifestVisitor(options: {
                         };
                     }
 
-                    // Data enum: use BorshEnum struct pattern.
+                    // Data enum: use BorshEnum struct pattern. ag_binary selects the
+                    // variant field positionally (index = Enum + 1), so every variant
+                    // must occupy exactly one field, in IDL order. Empty variants map to
+                    // the zero-size ag_binary.EmptyVariant.
                     const variants = enumType.variants.map(variant => visit(variant, self));
                     const mergedManifest = mergeManifests(variants);
                     mergedManifest.imports.add('github.com/gagliardetto/binary');
 
-                    const fieldLines = [`\tEnum ag_binary.BorshEnum \`borsh_enum:"true"\``];
-                    for (const variant of variants) {
-                        fieldLines.push(`\t${variant.type}`);
+                    if (enumType.variants.length > 256) {
+                        logWarn(
+                            `[Go] Enum [${typeName}] has ${enumType.variants.length} variants but ` +
+                                'ag_binary.BorshEnum is a uint8; variants beyond 255 cannot be encoded.',
+                        );
                     }
+                    if (sizeFormat !== 'u8') {
+                        logWarn(
+                            `[Go] Enum [${typeName}] declares a ${sizeFormat} discriminant but ` +
+                                'ag_binary.BorshEnum always encodes a u8; the generated codec will not match the program.',
+                        );
+                    }
+
+                    const fieldLines = [`\tEnum ag_binary.BorshEnum \`borsh_enum:"true"\``];
+                    enumType.variants.forEach((variant, index) => {
+                        if (isNode(variant, 'enumEmptyVariantTypeNode')) {
+                            fieldLines.push(`\t${pascalCase(variant.name)} ag_binary.EmptyVariant`);
+                        } else {
+                            fieldLines.push(`\t${variants[index].type}`);
+                        }
+                    });
+
+                    // Variant index constants so callers can set `Enum` by name.
+                    const constLines = enumType.variants.map((variant, index) => {
+                        const variantName = `${typeName}_${pascalCase(variant.name)}`;
+                        return index === 0 ? `\t${variantName} ag_binary.BorshEnum = iota` : `\t${variantName}`;
+                    });
 
                     return {
                         ...mergedManifest,
-                        type: `type ${typeName} struct {\n${fieldLines.join('\n')}\n}`,
+                        type:
+                            `type ${typeName} struct {\n${fieldLines.join('\n')}\n}\n\n` +
+                            `const (\n${constLines.join('\n')}\n)`,
                     };
                 },
 

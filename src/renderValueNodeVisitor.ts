@@ -2,37 +2,36 @@ import {
     arrayValueNode,
     bytesValueNode,
     isNode,
+    isScalarEnum,
     numberValueNode,
     pascalCase,
     RegisteredValueNode,
     ValueNode,
 } from '@codama/nodes';
-import { visit, Visitor } from '@codama/visitors-core';
+import { LinkableDictionary, NodeStack, visit, Visitor } from '@codama/visitors-core';
 
 import { ImportMap } from './ImportMap';
 import { getBytesFromBytesValueNode, GetImportFromFunction } from './utils';
+
+// Lets the renderer resolve links (e.g. the enum a value refers to).
+export type ValueRenderScope = { linkables: LinkableDictionary; stack: NodeStack };
+
+type ValueRender = { imports: ImportMap; render: string };
 
 export function renderValueNode(
     value: ValueNode,
     _getImportFrom?: GetImportFromFunction,
     _useStr?: boolean,
-): {
-    imports: ImportMap;
-    render: string;
-} {
-    return visit(value, renderValueNodeVisitor());
+    scope?: ValueRenderScope,
+): ValueRender {
+    return visit(value, renderValueNodeVisitor(_getImportFrom, _useStr, scope));
 }
 
 export function renderValueNodeVisitor(
     _getImportFrom?: GetImportFromFunction,
     _useStr?: boolean,
-): Visitor<
-    {
-        imports: ImportMap;
-        render: string;
-    },
-    RegisteredValueNode['kind']
-> {
+    scope?: ValueRenderScope,
+): Visitor<ValueRender, RegisteredValueNode['kind']> {
     return {
         visitArrayValue(node) {
             const list = node.items.map(v => visit(v, this));
@@ -79,15 +78,40 @@ export function renderValueNodeVisitor(
             const imports = new ImportMap();
             const enumName = pascalCase(node.enum.name);
             const variantName = pascalCase(node.variant);
-            // In Go, enum variants are TypeName_VariantName for scalar enums
-            if (!node.value) {
-                return { imports, render: `${enumName}_${variantName}` };
+            const constName = `${enumName}_${variantName}`;
+
+            // Scalar enums are typed integer constants; data enums are BorshEnum
+            // structs whose `Enum` field holds the variant index. Without a scope
+            // the enum cannot be resolved and the scalar form is assumed.
+            const definedType = scope ? scope.linkables.get([...scope.stack.getPath(), node.enum]) : undefined;
+            const isDataEnum =
+                definedType !== undefined &&
+                isNode(definedType.type, 'enumTypeNode') &&
+                !isScalarEnum(definedType.type);
+
+            if (!isDataEnum) {
+                if (!node.value) {
+                    return { imports, render: constName };
+                }
+                const enumValue = visit(node.value, this);
+                return {
+                    imports: imports.mergeWith(enumValue.imports),
+                    render: `${constName} ${enumValue.render}`,
+                };
             }
-            const enumValue = visit(node.value, this);
-            const fields = enumValue.render;
+
+            if (!node.value) {
+                return { imports, render: `${enumName}{Enum: ${constName}}` };
+            }
+
+            // Variant payloads are anonymous struct fields, so build the value
+            // by assigning into a zero value instead of spelling out the type.
+            const assignments = renderVariantAssignments(`v.${variantName}`, node.value, this);
             return {
-                imports: imports.mergeWith(enumValue.imports),
-                render: `${enumName}_${variantName} ${fields}`,
+                imports: imports.mergeWith(...assignments.map(a => a.imports)),
+                render:
+                    `func() (v ${enumName}) { v.Enum = ${constName}; ` +
+                    `${assignments.map(a => a.render).join('; ')}; return v }()`,
             };
         },
         visitMapEntryValue(node) {
@@ -165,4 +189,29 @@ export function renderValueNodeVisitor(
             };
         },
     };
+}
+
+// Go assignments that populate `target` (a data-enum variant field) from a
+// struct or tuple value node, mirroring the shapes getTypeManifestVisitor
+// emits for enum variants (anonymous struct, single item, or Field0..N).
+function renderVariantAssignments(
+    target: string,
+    value: ValueNode,
+    visitor: Visitor<ValueRender, RegisteredValueNode['kind']>,
+): ValueRender[] {
+    if (isNode(value, 'structValueNode')) {
+        return value.fields.map(field => {
+            const fieldValue = visit(field.value, visitor);
+            return { ...fieldValue, render: `${target}.${pascalCase(field.name)} = ${fieldValue.render}` };
+        });
+    }
+    if (isNode(value, 'tupleValueNode') && value.items.length !== 1) {
+        return value.items.map((item, index) => {
+            const itemValue = visit(item, visitor);
+            return { ...itemValue, render: `${target}.Field${index} = ${itemValue.render}` };
+        });
+    }
+    const single = isNode(value, 'tupleValueNode') ? value.items[0] : value;
+    const rendered = visit(single, visitor);
+    return [{ ...rendered, render: `${target} = ${rendered.render}` }];
 }

@@ -49,7 +49,10 @@
                             "endian": "le"
                         },
                         "docs": [],
-                        "defaultValue": { "kind": "numberValueNode", "number": 42 },
+                        "defaultValue": {
+                            "kind": "numberValueNode",
+                            "number": 42
+                        },
                         "defaultValueStrategy": "omitted"
                     }
                 ],
@@ -95,7 +98,10 @@
                             "format": "u64",
                             "endian": "le"
                         },
-                        "defaultValue": { "kind": "numberValueNode", "number": 42 },
+                        "defaultValue": {
+                            "kind": "numberValueNode",
+                            "number": 42
+                        },
                         "docs": []
                     }
                 ]
@@ -133,6 +139,84 @@
                     }
                 ],
                 "arguments": []
+            },
+            {
+                "kind": "instructionNode",
+                "name": "instruction8",
+                "optionalAccountStrategy": "programId",
+                "docs": ["Testing instructions with a constant discriminator"],
+                "accounts": [],
+                "arguments": [
+                    {
+                        "kind": "instructionArgumentNode",
+                        "name": "value",
+                        "type": {
+                            "kind": "numberTypeNode",
+                            "format": "u16",
+                            "endian": "le"
+                        },
+                        "docs": []
+                    }
+                ],
+                "discriminators": [
+                    {
+                        "kind": "constantDiscriminatorNode",
+                        "constant": {
+                            "kind": "constantValueNode",
+                            "type": {
+                                "kind": "numberTypeNode",
+                                "format": "u8",
+                                "endian": "le"
+                            },
+                            "value": {
+                                "kind": "numberValueNode",
+                                "number": 8
+                            }
+                        },
+                        "offset": 0
+                    }
+                ]
+            },
+            {
+                "kind": "instructionNode",
+                "name": "instruction9",
+                "optionalAccountStrategy": "programId",
+                "docs": ["Testing instructions with a field discriminator at a non-zero offset"],
+                "accounts": [],
+                "arguments": [
+                    {
+                        "kind": "instructionArgumentNode",
+                        "name": "version",
+                        "type": {
+                            "kind": "numberTypeNode",
+                            "format": "u8",
+                            "endian": "le"
+                        },
+                        "docs": []
+                    },
+                    {
+                        "kind": "instructionArgumentNode",
+                        "name": "discriminator",
+                        "type": {
+                            "kind": "numberTypeNode",
+                            "format": "u8",
+                            "endian": "le"
+                        },
+                        "docs": [],
+                        "defaultValue": {
+                            "kind": "numberValueNode",
+                            "number": 9
+                        },
+                        "defaultValueStrategy": "omitted"
+                    }
+                ],
+                "discriminators": [
+                    {
+                        "kind": "fieldDiscriminatorNode",
+                        "name": "discriminator",
+                        "offset": 1
+                    }
+                ]
             }
         ],
         "definedTypes": [],

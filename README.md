@@ -30,6 +30,17 @@ Add the following script to your Codama configuration file.
 }
 ```
 
+## PDA helpers
+
+For every structurally distinct PDA found in the IDL (in `program.pdas` or inline in instruction account defaults), the renderer emits a `Find<Name>PDA` function in `pdas.go`. Constant seeds are inlined as byte literals (with a readable comment); variable seeds become typed parameters. The bump is returned alongside the address:
+
+```go
+global, _, err := pump.FindGlobalPDA()
+bondingCurve, bump, err := pump.FindBondingCurvePDA(mint)
+```
+
+PDAs defined under another program (for example associated token accounts) derive under that program's id automatically. Each helper's doc comment lists the instructions that use the PDA.
+
 ## Contributing
 
 ### Prerequisites
@@ -78,7 +89,13 @@ node e2e/generate.cjs <project>   # e.g. dummy, system, memo
 cd e2e/<project> && go build ./...
 ```
 
-Available e2e projects: `dummy`, `system`, `memo`.
+Available e2e projects: `dummy`, `system`, `memo`, `pump-fun`, `jupiter`.
+
+To add an Anchor program, convert its IDL to the Codama format first:
+
+```sh
+node e2e/anchor-to-codama.cjs path/to/anchor-idl.json e2e/<project>/idl.json
+```
 
 ### Lint
 

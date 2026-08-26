@@ -60,120 +60,214 @@ func (inst *{{ instruction.name | pascalCase }}) Get{{ account.name | pascalCase
 
 {% endfor %}
 
-func (inst {{ instruction.name | pascalCase }}) Build() *Instruction {
+// Build wraps the instruction in an Instruction. The result aliases the
+// builder: later Set* calls are visible through the returned Instruction.
+func (inst *{{ instruction.name | pascalCase }}) Build() *Instruction {
 	return &Instruction{BaseVariant: ag_binary.BaseVariant{
 		Impl:   inst,
+{% if discriminatorVar %}
+		TypeID: ag_binary.TypeIDFromBytes({{ discriminatorVar }}),
+{% else %}
 		TypeID: ag_binary.NoTypeIDDefaultID,
+{% endif %}
 	}}
 }
 
 // ValidateAndBuild validates the instruction parameters and accounts;
 // if there is a validation error, it returns the error.
 // Otherwise, it builds and returns the instruction.
-func (inst {{ instruction.name | pascalCase }}) ValidateAndBuild() (*Instruction, error) {
+func (inst *{{ instruction.name | pascalCase }}) ValidateAndBuild() (*Instruction, error) {
 	if err := inst.Validate(); err != nil {
 		return nil, err
 	}
 	return inst.Build(), nil
 }
 
+// Validate checks that every required account has been set.
 func (inst *{{ instruction.name | pascalCase }}) Validate() error {
 {% for account in instruction.accounts %}
 {% if not account.isOptional %}
 	if inst.AccountMetaSlice[{{ loop.index0 }}] == nil {
-		return fmt.Errorf("accounts.{{ account.name | pascalCase }} is not set")
+		return errors.New("accounts.{{ account.name | pascalCase }} is not set")
 	}
 {% endif %}
 {% endfor %}
 	return nil
 }
 
-func (inst *{{ instruction.name | pascalCase }}) GetAccounts() (out []*ag_solanago.AccountMeta) {
-	return inst.AccountMetaSlice
-}
-
-func (inst *{{ instruction.name | pascalCase }}) SetAccounts(accounts []*ag_solanago.AccountMeta) error {
-{% if instruction.accounts.length > 0 %}
-	if len(accounts) < {{ instruction.accounts.length }} {
-		return fmt.Errorf("not enough accounts: expected at least {{ instruction.accounts.length }}, got %d", len(accounts))
-	}
-	inst.AccountMetaSlice = accounts[:{{ instruction.accounts.length }}]
+// GetAccounts returns the account metas in instruction order, including any
+// remaining accounts appended to AccountMetaSlice.
+{% if optionalAccountIndexes.length > 0 %}
+{% if optionalAccountStrategy == 'omitted' %}
+// Unset optional accounts are left out.
 {% else %}
-	inst.AccountMetaSlice = nil
+// Unset optional accounts are passed as the program id, as the program expects.
 {% endif %}
+func (inst *{{ instruction.name | pascalCase }}) GetAccounts() (out []*ag_solanago.AccountMeta) {
+	out = make([]*ag_solanago.AccountMeta, 0, len(inst.AccountMetaSlice))
+	for i, meta := range inst.AccountMetaSlice {
+{% if optionalAccountIndexes.length == 1 %}
+		if meta == nil && i == {{ optionalAccountIndexes[0] }} {
+{% if optionalAccountStrategy == 'omitted' %}
+			continue
+{% else %}
+			meta = ag_solanago.Meta(ProgramID)
+{% endif %}
+		}
+{% else %}
+		if meta == nil {
+			switch i {
+			case {{ optionalAccountIndexes | join(', ') }}:
+{% if optionalAccountStrategy == 'omitted' %}
+				continue
+{% else %}
+				meta = ag_solanago.Meta(ProgramID)
+{% endif %}
+			}
+		}
+{% endif %}
+		out = append(out, meta)
+	}
+	return out
+}
+{% else %}
+func (inst *{{ instruction.name | pascalCase }}) GetAccounts() (out []*ag_solanago.AccountMeta) {
+	out = make([]*ag_solanago.AccountMeta, len(inst.AccountMetaSlice))
+	copy(out, inst.AccountMetaSlice)
+	return out
+}
+{% endif %}
+
+// SetAccounts binds decoded account metas to the instruction. Missing
+// optional accounts are padded with nil; extra (remaining) accounts are kept.
+func (inst *{{ instruction.name | pascalCase }}) SetAccounts(accounts []*ag_solanago.AccountMeta) error {
+{% if minRequiredAccounts > 0 %}
+	if len(accounts) < {{ minRequiredAccounts }} {
+		return fmt.Errorf("not enough accounts: expected at least {{ minRequiredAccounts }}, got %d", len(accounts))
+	}
+{% endif %}
+{% if minRequiredAccounts < instruction.accounts.length %}
+	if len(accounts) < {{ instruction.accounts.length }} {
+		padded := make(ag_solanago.AccountMetaSlice, {{ instruction.accounts.length }})
+		copy(padded, accounts)
+		accounts = padded
+	}
+{% endif %}
+	inst.AccountMetaSlice = accounts
 	return nil
 }
 
+// MarshalWithEncoder writes the instruction data: its discriminator, if any,
+// followed by the arguments in IDL order.
 func (inst *{{ instruction.name | pascalCase }}) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+{% if discriminatorKind == 'constant' %}
+	if err := encoder.WriteBytes({{ discriminatorVar }}, false); err != nil {
+		return err
+	}
+{% endif %}
 {% for arg in instructionArgs %}
-{% if arg.default %}
-	{
-		err := encoder.Encode({{ arg.type }}({{ arg.value }}))
-		if err != nil {
-			return err
-		}
+{% if arg.discriminator %}
+	if err := encoder.WriteBytes({{ discriminatorVar }}, false); err != nil {
+		return err
+	}
+{% elif arg.default %}
+	if err := encoder.Encode({{ arg.type }}({{ arg.value }})); err != nil {
+		return err
 	}
 {% elif arg.innerOptionType %}
-	{
-		if inst.{{ arg.name | pascalCase }} == nil {
-			err := encoder.WriteBool(false)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := encoder.WriteBool(true)
-			if err != nil {
-				return err
-			}
-			err = encoder.Encode(*inst.{{ arg.name | pascalCase }})
-			if err != nil {
-				return err
-			}
+	if inst.{{ arg.name | pascalCase }} == nil {
+		if err := encoder.WriteBool(false); err != nil {
+			return err
+		}
+	} else {
+		if err := encoder.WriteBool(true); err != nil {
+			return err
+		}
+		if err := encoder.Encode(*inst.{{ arg.name | pascalCase }}); err != nil {
+			return err
+		}
+	}
+{% elif arg.remainder == 'string' %}
+	if err := encoder.WriteBytes([]byte(inst.{{ arg.name | pascalCase }}), false); err != nil {
+		return err
+	}
+{% elif arg.remainder == 'bytes' %}
+	if err := encoder.WriteBytes(inst.{{ arg.name | pascalCase }}, false); err != nil {
+		return err
+	}
+{% elif arg.remainder == 'array' %}
+	for _, item := range inst.{{ arg.name | pascalCase }} {
+		if err := encoder.Encode(item); err != nil {
+			return err
 		}
 	}
 {% else %}
-	{
-		err := encoder.Encode(inst.{{ arg.name | pascalCase }})
-		if err != nil {
-			return err
-		}
+	if err := encoder.Encode(inst.{{ arg.name | pascalCase }}); err != nil {
+		return err
 	}
 {% endif %}
 {% endfor %}
 	return nil
 }
 
+// UnmarshalWithDecoder reads the instruction data, rejecting it when the
+// discriminator does not match.
 func (inst *{{ instruction.name | pascalCase }}) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+{% if discriminatorKind == 'constant' %}
+	if got, err := decoder.ReadNBytes(len({{ discriminatorVar }})); err != nil {
+		return err
+	} else if !bytes.Equal(got, {{ discriminatorVar }}) {
+		return fmt.Errorf("invalid discriminator for {{ instruction.name | pascalCase }}: got %x, want %x", got, {{ discriminatorVar }})
+	}
+{% endif %}
 {% for arg in instructionArgs %}
-{% if arg.default %}
+{% if arg.discriminator %}
+	if got, err := decoder.ReadNBytes(len({{ discriminatorVar }})); err != nil {
+		return err
+	} else if !bytes.Equal(got, {{ discriminatorVar }}) {
+		return fmt.Errorf("invalid discriminator for {{ instruction.name | pascalCase }}: got %x, want %x", got, {{ discriminatorVar }})
+	}
+{% elif arg.default %}
 	{
 		var tmp {{ arg.type }}
-		err := decoder.Decode(&tmp)
-		if err != nil {
+		if err := decoder.Decode(&tmp); err != nil {
 			return err
 		}
 	}
 {% elif arg.innerOptionType %}
-	{
-		ok, err := decoder.ReadBool()
-		if err != nil {
+	if ok, err := decoder.ReadBool(); err != nil {
+		return err
+	} else if ok {
+		var val {{ arg.innerOptionType }}
+		if err := decoder.Decode(&val); err != nil {
 			return err
 		}
-		if ok {
-			var val {{ arg.innerOptionType }}
-			err = decoder.Decode(&val)
-			if err != nil {
-				return err
-			}
-			inst.{{ arg.name | pascalCase }} = &val
+		inst.{{ arg.name | pascalCase }} = &val
+	}
+{% elif arg.remainder == 'string' %}
+	data, err := decoder.ReadNBytes(decoder.Remaining())
+	if err != nil {
+		return err
+	}
+	inst.{{ arg.name | pascalCase }} = string(data)
+{% elif arg.remainder == 'bytes' %}
+	data, err := decoder.ReadNBytes(decoder.Remaining())
+	if err != nil {
+		return err
+	}
+	inst.{{ arg.name | pascalCase }} = data
+{% elif arg.remainder == 'array' %}
+	inst.{{ arg.name | pascalCase }} = nil
+	for decoder.Remaining() > 0 {
+		var item {{ arg.itemType }}
+		if err := decoder.Decode(&item); err != nil {
+			return err
 		}
+		inst.{{ arg.name | pascalCase }} = append(inst.{{ arg.name | pascalCase }}, item)
 	}
 {% else %}
-	{
-		err := decoder.Decode(&inst.{{ arg.name | pascalCase }})
-		if err != nil {
-			return err
-		}
+	if err := decoder.Decode(&inst.{{ arg.name | pascalCase }}); err != nil {
+		return err
 	}
 {% endif %}
 {% endfor %}
