@@ -2,9 +2,9 @@ name: Main
 
 on:
   push:
-    branches: [main]
+    branches: [main, '[0-9]+.x']
   pull_request:
-    branches: [main]
+    branches: [main, '[0-9]+.x']
 
 concurrency:
   group: main-${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +17,7 @@ env:
   # Among other things, opts out of Turborepo telemetry. See https://consoledonottrack.com/.
   DO_NOT_TRACK: '1'
   NODE_VERSION: 24
+  RELEASE_VERSION: 2.x
 
 jobs:
   lint:
@@ -74,7 +75,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     needs: [lint, tests]
     permissions:
       contents: write
@@ -112,8 +113,8 @@ jobs:
         uses: changesets/action@v2.1.1
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          commit-message: 'Publish package'
-          pr-title: 'Publish package'
+          commit-message: '[${{ env.RELEASE_VERSION }}] Publish package'
+          pr-title: '[${{ env.RELEASE_VERSION }}] Publish package'
           publish-script: pnpm publish-package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
