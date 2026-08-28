@@ -56,7 +56,7 @@
         "@codama/release-tools": "github:codama-idl/release-tools#v1.0.0",
         "@solana/eslint-config-solana": "^5.0.1",
         "@solana/prettier-config-solana": "0.0.6",
-        "@types/node": "^25.2.3",
+        "@types/node": "^26.3.0",
         "@types/nunjucks": "^3.2.6",
         "agadoo": "^3.0.0",
         "eslint": "^9.39.2",
