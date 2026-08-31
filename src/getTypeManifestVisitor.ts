@@ -183,6 +183,7 @@ export function getTypeManifestVisitor(options: {
                 },
 
                 visitEnumType(enumType, { self }) {
+                    const variantNodes = enumType.variants ?? [];
                     const originalParentName = parentName;
                     if (!originalParentName) {
                         throw new Error('Enum type must have a parent name.');
@@ -195,7 +196,7 @@ export function getTypeManifestVisitor(options: {
                     // Scalar enum: all variants are empty → use typed constants with iota,
                     // on an integer of the IDL's size (u8 by default, u32 for Rust repr(u32) enums).
                     if (isScalarEnum(enumType)) {
-                        const variants = enumType.variants.map(variant => visit(variant, self));
+                        const variants = variantNodes.map(variant => visit(variant, self));
                         const mergedManifest = mergeManifests(variants);
 
                         const constLines = variants.map((variant, index) => {
@@ -219,13 +220,13 @@ export function getTypeManifestVisitor(options: {
                     // variant field positionally (index = Enum + 1), so every variant
                     // must occupy exactly one field, in IDL order. Empty variants map to
                     // the zero-size ag_binary.EmptyVariant.
-                    const variants = enumType.variants.map(variant => visit(variant, self));
+                    const variants = variantNodes.map(variant => visit(variant, self));
                     const mergedManifest = mergeManifests(variants);
                     mergedManifest.imports.add('github.com/gagliardetto/binary');
 
-                    if (enumType.variants.length > 256) {
+                    if (variantNodes.length > 256) {
                         logWarn(
-                            `[Go] Enum [${typeName}] has ${enumType.variants.length} variants but ` +
+                            `[Go] Enum [${typeName}] has ${variantNodes.length} variants but ` +
                                 'ag_binary.BorshEnum is a uint8; variants beyond 255 cannot be encoded.',
                         );
                     }
@@ -237,7 +238,7 @@ export function getTypeManifestVisitor(options: {
                     }
 
                     const fieldLines = [`\tEnum ag_binary.BorshEnum \`borsh_enum:"true"\``];
-                    enumType.variants.forEach((variant, index) => {
+                    variantNodes.forEach((variant, index) => {
                         if (isNode(variant, 'enumEmptyVariantTypeNode')) {
                             fieldLines.push(`\t${pascalCase(variant.name)} ag_binary.EmptyVariant`);
                         } else {
@@ -246,7 +247,7 @@ export function getTypeManifestVisitor(options: {
                     });
 
                     // Variant index constants so callers can set `Enum` by name.
-                    const constLines = enumType.variants.map((variant, index) => {
+                    const constLines = variantNodes.map((variant, index) => {
                         const variantName = `${typeName}_${pascalCase(variant.name)}`;
                         return index === 0 ? `\t${variantName} ag_binary.BorshEnum = iota` : `\t${variantName}`;
                     });
@@ -407,7 +408,7 @@ export function getTypeManifestVisitor(options: {
                         throw new Error('Struct type must have a parent name.');
                     }
 
-                    const fields = structType.fields.map(field => visit(field, self));
+                    const fields = (structType.fields ?? []).map(field => visit(field, self));
                     const fieldTypes = fields.map(field => field.type).join('\n');
                     const mergedManifest = mergeManifests(fields);
 
@@ -436,7 +437,7 @@ export function getTypeManifestVisitor(options: {
                     // Go doesn't have native tuples.
                     // For a single-element tuple, just use the element type.
                     // For multi-element, generate a struct.
-                    const items = tupleType.items.map(item => visit(item, self));
+                    const items = (tupleType.items ?? []).map(item => visit(item, self));
                     const mergedManifest = mergeManifests(items);
 
                     if (items.length === 1) {

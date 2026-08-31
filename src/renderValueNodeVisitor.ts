@@ -34,7 +34,7 @@ export function renderValueNodeVisitor(
 ): Visitor<ValueRender, RegisteredValueNode['kind']> {
     return {
         visitArrayValue(node) {
-            const list = node.items.map(v => visit(v, this));
+            const list = (node.items ?? []).map(v => visit(v, this));
             return {
                 imports: new ImportMap().mergeWith(...list.map(c => c.imports)),
                 render: `[]byte{${list.map(c => c.render).join(', ')}}`,
@@ -114,6 +114,12 @@ export function renderValueNodeVisitor(
                     `${assignments.map(a => a.render).join('; ')}; return v }()`,
             };
         },
+        visitInjectedValue(node) {
+            // Injected values are resolved by a surrounding provider at
+            // resolution time; the renderer can only use the fallback.
+            if (node.fallback) return visit(node.fallback, this);
+            throw new Error(`Cannot render injected value [${node.key}] without a fallback in Go.`);
+        },
         visitMapEntryValue(node) {
             const mapKey = visit(node.key, this);
             const mapValue = visit(node.value, this);
@@ -123,7 +129,7 @@ export function renderValueNodeVisitor(
             };
         },
         visitMapValue(node) {
-            const map = node.entries.map(entry => visit(entry, this));
+            const map = (node.entries ?? []).map(entry => visit(entry, this));
             return {
                 imports: new ImportMap().mergeWith(...map.map(c => c.imports)),
                 render: `map[string]interface{}{${map.map(c => c.render).join(', ')}}`,
@@ -148,7 +154,7 @@ export function renderValueNodeVisitor(
             };
         },
         visitSetValue(node) {
-            const set = node.items.map(v => visit(v, this));
+            const set = (node.items ?? []).map(v => visit(v, this));
             return {
                 imports: new ImportMap().mergeWith(...set.map(c => c.imports)),
                 render: `map[interface{}]struct{}{${set.map(c => `${c.render}: {}`).join(', ')}}`,
@@ -175,14 +181,14 @@ export function renderValueNodeVisitor(
             };
         },
         visitStructValue(node) {
-            const struct = node.fields.map(field => visit(field, this));
+            const struct = (node.fields ?? []).map(field => visit(field, this));
             return {
                 imports: new ImportMap().mergeWith(...struct.map(c => c.imports)),
                 render: `{${struct.map(c => c.render).join(', ')}}`,
             };
         },
         visitTupleValue(node) {
-            const tuple = node.items.map(v => visit(v, this));
+            const tuple = (node.items ?? []).map(v => visit(v, this));
             return {
                 imports: new ImportMap().mergeWith(...tuple.map(c => c.imports)),
                 render: tuple.length === 1 ? tuple[0].render : `[${tuple.map(c => c.render).join(', ')}]`,
@@ -200,18 +206,19 @@ function renderVariantAssignments(
     visitor: Visitor<ValueRender, RegisteredValueNode['kind']>,
 ): ValueRender[] {
     if (isNode(value, 'structValueNode')) {
-        return value.fields.map(field => {
+        return (value.fields ?? []).map(field => {
             const fieldValue = visit(field.value, visitor);
             return { ...fieldValue, render: `${target}.${pascalCase(field.name)} = ${fieldValue.render}` };
         });
     }
-    if (isNode(value, 'tupleValueNode') && value.items.length !== 1) {
-        return value.items.map((item, index) => {
+    const tupleItems = isNode(value, 'tupleValueNode') ? (value.items ?? []) : null;
+    if (tupleItems && tupleItems.length !== 1) {
+        return tupleItems.map((item, index) => {
             const itemValue = visit(item, visitor);
             return { ...itemValue, render: `${target}.Field${index} = ${itemValue.render}` };
         });
     }
-    const single = isNode(value, 'tupleValueNode') ? value.items[0] : value;
+    const single = tupleItems ? tupleItems[0] : value;
     const rendered = visit(single, visitor);
     return [{ ...rendered, render: `${target} = ${rendered.render}` }];
 }

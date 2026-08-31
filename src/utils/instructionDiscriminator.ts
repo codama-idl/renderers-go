@@ -56,7 +56,7 @@ export function getDiscriminatorBytes(type: TypeNode, value: ValueNode): number[
 
     if (isNode(value, 'arrayValueNode')) {
         const bytes: number[] = [];
-        for (const item of value.items) {
+        for (const item of value.items ?? []) {
             if (!isNode(item, 'numberValueNode') || !Number.isInteger(item.number)) return null;
             if (item.number < 0 || item.number > 255) return null;
             bytes.push(item.number);
@@ -96,9 +96,7 @@ export function getLeadingDiscriminator(scope: {
     for (const discriminator of scope.discriminators) {
         if (isNode(discriminator, 'fieldDiscriminatorNode')) {
             const field = (scope.fields as { name: string }[]).find(f => f.name === discriminator.name) as
-                | InstructionArgumentNode
-                | StructFieldTypeNode
-                | undefined;
+                InstructionArgumentNode | StructFieldTypeNode | undefined;
             if (!field?.defaultValue || !isNode(field.defaultValue, VALUE_NODES)) continue;
             if (field.defaultValueStrategy !== 'omitted') continue;
             const bytes = getDiscriminatorBytes(field.type, field.defaultValue);
@@ -129,7 +127,7 @@ export function getLeadingDiscriminator(scope: {
 export function getInstructionDiscriminator(node: InstructionNode): LeadingDiscriminator | null {
     return getLeadingDiscriminator({
         discriminators: node.discriminators ?? [],
-        fields: node.arguments,
+        fields: node.arguments ?? [],
         prefix: node.name,
     });
 }
@@ -137,7 +135,7 @@ export function getInstructionDiscriminator(node: InstructionNode): LeadingDiscr
 export function getAccountDiscriminator(node: AccountNode): LeadingDiscriminator | null {
     return getLeadingDiscriminator({
         discriminators: node.discriminators ?? [],
-        fields: resolveNestedTypeNode(node.data).fields,
+        fields: resolveNestedTypeNode(node.data).fields ?? [],
         prefix: node.name,
     });
 }

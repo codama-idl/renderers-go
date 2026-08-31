@@ -10,7 +10,7 @@ import (
 	ag_solanago "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 
-	"github.com/codama-idl/renderers-go/pump/generated"
+	"github.com/codama-idl/renderers-go/pump-fun/generated"
 )
 
 func main() {

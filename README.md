@@ -30,6 +30,16 @@ Add the following script to your Codama configuration file.
 }
 ```
 
+## go.mod generation
+
+Pass `goModule` to the render visitor to emit a `go.mod` next to the generated files, with the module path you provide and the Go dependency versions the generated code is built against (pinned in the renderer's `goMod.njk` template):
+
+```js
+renderVisitor(path, { goModule: 'github.com/acme/my-program' });
+```
+
+Run `go mod tidy` in the output folder afterwards to resolve the indirect requirements.
+
 ## PDA helpers
 
 For every structurally distinct PDA found in the IDL (in `program.pdas` or inline in instruction account defaults), the renderer emits a `Find<Name>PDA` function in `pdas.go`. Constant seeds are inlined as byte literals (with a readable comment); variable seeds become typed parameters. The bump is returned alongside the address:

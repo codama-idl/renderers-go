@@ -1,5 +1,6 @@
 #!/usr/bin/env -S node
 
+const fs = require('node:fs');
 const path = require('node:path');
 const process = require('node:process');
 
@@ -7,7 +8,7 @@ const { rootNode } = require('@codama/nodes');
 const { readJson } = require('@codama/renderers-core');
 const { visit } = require('@codama/visitors-core');
 
-const { renderVisitor } = require('../dist/index.node.cjs');
+const { renderGoMod, renderVisitor } = require('../dist/index.node.cjs');
 
 async function main() {
     const project = process.argv.slice(2)[0] ?? undefined;
@@ -25,6 +26,14 @@ async function generateProject(project) {
         renderVisitor(path.join(__dirname, project, 'generated'), {
             formatCode: true,
         }),
+    );
+
+    // The project's go.mod is rendered from the same template the renderer
+    // uses (goMod.njk pins the Go dependency versions); `go mod tidy` in
+    // e2e/test.sh expands the indirect requirements deterministically.
+    fs.writeFileSync(
+        path.join(__dirname, project, 'go.mod'),
+        renderGoMod(`github.com/codama-idl/renderers-go/${project}`),
     );
 }
 
