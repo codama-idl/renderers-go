@@ -109,7 +109,7 @@ export function collectProgramPdas(
 
     (program.pdas ?? []).forEach(pda => register(pda, 'program'));
     getAllInstructionsWithSubs(program, { leavesOnly: options.leavesOnly }).forEach(instruction =>
-        instruction.accounts.forEach(account => {
+        (instruction.accounts ?? []).forEach(account => {
             const pda = resolvePdaFromAccountDefault(account, options);
             if (pda) register(pda, instruction.name);
         }),
@@ -215,7 +215,7 @@ function buildPdaHelper(
     const paramCounts = new Map<string, number>();
     let hasDuplicateParams = false;
 
-    for (const seed of pda.seeds) {
+    for (const seed of pda.seeds ?? []) {
         if (isNode(seed, 'constantPdaSeedNode')) {
             if (isNode(seed.value, 'programIdValueNode')) {
                 seeds.push({ comment: 'program id', render: 'ProgramID[:]' });

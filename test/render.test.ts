@@ -405,6 +405,21 @@ describe('remainder-encoded fields', () => {
     });
 });
 
+describe('go.mod generation', () => {
+    it('emits a go.mod with the pinned Go dependencies when goModule is set', () => {
+        const root = rootNode(programNode({ name: 'test', publicKey: PROGRAM_ID }));
+        const withGoMod = visit(root, getRenderMapVisitor({ goModule: 'github.com/acme/thing' }));
+        expectContains(
+            withGoMod,
+            'go.mod',
+            'module github.com/acme/thing',
+            'github.com/gagliardetto/binary v',
+            'github.com/gagliardetto/solana-go v',
+        );
+        expect(visit(root, getRenderMapVisitor()).has('go.mod')).toBe(false);
+    });
+});
+
 describe('pda helpers', () => {
     const OTHER_PROGRAM_ID = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
     const utf8Seed = (text: string) => constantPdaSeedNode(bytesTypeNode(), bytesValueNode('utf8', text));

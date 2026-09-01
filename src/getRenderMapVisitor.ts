@@ -28,6 +28,7 @@ import {
 
 import { getTypeManifestVisitor } from './getTypeManifestVisitor';
 import { ImportMap } from './ImportMap';
+import { renderGoMod } from './renderGoMod';
 import { renderValueNode } from './renderValueNodeVisitor';
 import {
     collectProgramPdas,
@@ -42,6 +43,10 @@ import {
 
 export type GetRenderMapOptions = {
     dependencyMap?: Record<string, string>;
+    // When set, a go.mod with this module path (and the pinned Go dependency
+    // versions) is emitted next to the generated files; run `go mod tidy` in
+    // the output folder afterwards.
+    goModule?: string;
     linkOverrides?: LinkOverrides;
     renderParentInstructions?: boolean;
 };
@@ -69,7 +74,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                     typeManifest.imports.add('github.com/gagliardetto/binary');
 
                     // Discriminator constants.
-                    const fields = resolveNestedTypeNode(node.data).fields;
+                    const fields = resolveNestedTypeNode(node.data).fields ?? [];
                     const discriminatorConstants = getDiscriminatorConstants({
                         discriminatorNodes: node.discriminators ?? [],
                         fields,
@@ -185,10 +190,12 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                     // Optional accounts: unset slots are filled with the program id
                     // (or dropped) in GetAccounts, and only the accounts up to the last
                     // required one must be present when decoding.
-                    const optionalAccountIndexes = node.accounts.flatMap((account, index) =>
+                    const instructionAccounts = node.accounts ?? [];
+                    const instructionArguments = node.arguments ?? [];
+                    const optionalAccountIndexes = instructionAccounts.flatMap((account, index) =>
                         account.isOptional ? [index] : [],
                     );
-                    const minRequiredAccounts = node.accounts.reduce(
+                    const minRequiredAccounts = instructionAccounts.reduce(
                         (last, account, index) => (account.isOptional ? last : index + 1),
                         0,
                     );
@@ -220,7 +227,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                     // Discriminator constants.
                     const discriminatorConstants = getDiscriminatorConstants({
                         discriminatorNodes: node.discriminators ?? [],
-                        fields: node.arguments,
+                        fields: instructionArguments,
                         getImportFrom,
                         prefix: node.name,
                         typeManifestVisitor,
@@ -241,7 +248,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                     let hasArgs = false;
                     let hasOptional = false;
 
-                    node.arguments.forEach(argument => {
+                    instructionArguments.forEach(argument => {
                         const argumentVisitor = getTypeManifestVisitor({
                             getImportFrom,
                             nestedStruct: true,
@@ -287,7 +294,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                         });
                     });
 
-                    const struct = structTypeNodeFromInstructionArgumentNodes(node.arguments);
+                    const struct = structTypeNodeFromInstructionArgumentNodes(instructionArguments);
                     const structVisitor = getTypeManifestVisitor({
                         getImportFrom,
                         parentName: `${pascalCase(node.name)}InstructionData`,
@@ -302,7 +309,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                             hasArgs,
                             hasOptional,
                             imports: imports.mergeWith(discriminatorConstants.imports).toString(dependencyMap),
-                            instruction: node,
+                            instruction: { ...node, accounts: instructionAccounts },
                             instructionArgs,
                             minRequiredAccounts,
                             optionalAccountIndexes,
@@ -322,18 +329,18 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
                         stack,
                     });
                     let renders = mergeRenderMaps([
-                        ...node.accounts.map(account => visit(account, self)),
-                        ...node.definedTypes.map(type => visit(type, self)),
+                        ...(node.accounts ?? []).map(account => visit(account, self)),
+                        ...(node.definedTypes ?? []).map(type => visit(type, self)),
                         ...getAllInstructionsWithSubs(node, {
                             leavesOnly: !renderParentInstructions,
                         }).map(ix => visit(ix, self)),
                     ]);
 
                     // Errors.
-                    if (node.errors.length > 0) {
+                    if ((node.errors ?? []).length > 0) {
                         renders = addToRenderMap(renders, `errors.go`, {
                             content: render('errorsPage.njk', {
-                                errors: node.errors,
+                                errors: node.errors ?? [],
                                 imports: new ImportMap().toString(dependencyMap),
                                 packageName: snakeCase(node.name),
                                 program: node,
@@ -436,6 +443,7 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
 
                     return mergeRenderMaps([
                         createRenderMap({
+                            ['go.mod']: options.goModule ? { content: renderGoMod(options.goModule) } : undefined,
                             ['instructions.go']: hasAnythingToExport
                                 ? { content: render('instructionsMod.njk', ctx) }
                                 : undefined,
@@ -451,8 +459,8 @@ export function getRenderMapVisitor(options: GetRenderMapOptions = {}) {
 
 function getConflictsForInstructionAccountsAndArgs(instruction: InstructionNode): string[] {
     const allNames = [
-        ...instruction.accounts.map(account => account.name),
-        ...instruction.arguments.map(argument => argument.name),
+        ...(instruction.accounts ?? []).map(account => account.name),
+        ...(instruction.arguments ?? []).map(argument => argument.name),
     ];
     const duplicates = allNames.filter((e, i, a) => a.indexOf(e) !== i);
     return [...new Set(duplicates)];

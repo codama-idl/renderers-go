@@ -7,7 +7,7 @@ import (
 	ag_binary "github.com/gagliardetto/binary"
 	ag_solanago "github.com/gagliardetto/solana-go"
 
-	pump "github.com/codama-idl/renderers-go/pump/generated"
+	pump "github.com/codama-idl/renderers-go/pump-fun/generated"
 )
 
 // Accounts always serialize their IDL discriminator and reject data that
